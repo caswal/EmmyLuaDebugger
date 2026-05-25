@@ -334,10 +334,6 @@ void EmmyFacade::Hook(lua_State *L, lua_Debug *ar) {
 			return;
 		}
 
-		// 没人断着时，把当前活跃 vm 记下来，使未断点过的 pause 能定位到目标
-		if (!_emmyDebuggerManager.GetHitBreakpoint()) {
-			_emmyDebuggerManager.SetHitDebugger(debugger);
-		}
 		debugger->Hook(ar, L);
 	} else {
 		if (workMode == WorkMode::Attach) {
@@ -353,9 +349,6 @@ void EmmyFacade::Hook(lua_State *L, lua_Debug *ar) {
 
 			this->transporter->Send(int(MessageCMD::AttachedNotify), obj);
 
-			if (!_emmyDebuggerManager.GetHitBreakpoint()) {
-				_emmyDebuggerManager.SetHitDebugger(debugger);
-			}
 			debugger->Hook(ar, L);
 		}
 	}

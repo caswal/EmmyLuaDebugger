@@ -106,6 +106,17 @@ void Debugger::Hook(lua_Debug *ar, lua_State *L) {
 				luaThreadExecutors.clear();
 			}
 		}
+
+		// 处理 pause: 如果 manager 上有挂起的 Break 请求(DoAction(Break)
+		// 时无 hitDebugger),这里消费一下,把当前 debugger 设为 hitDebugger,
+		// 然后走原来的 DoAction(Break) 路径设置 hookState = stateBreak。
+		// 下面读 hookState 时就会拿到 stateBreak, ProcessHook 在当前 LINE
+		// 事件上立刻命中 HandleBreak。
+		if (manager->ConsumePendingBreak()) {
+			manager->SetHitDebugger(shared_from_this());
+			DoAction(DebugAction::Break);
+		}
+
 		auto bp = FindBreakPoint(ar);
 		if (bp && ProcessBreakPoint(bp)) {
 			HandleBreak();

@@ -215,7 +215,20 @@ void EmmyDebuggerManager::DoAction(DebugAction action)
 	if (debugger)
 	{
 		debugger->DoAction(action);
+		return;
 	}
+	// 还没有 hit debugger: 只有 Break(pause) 在这种情况下有意义,
+	// 挂起 pending 标记,由下次任意 hook 触发时消费。
+	// 其它 action(continue/step/stop) 必须在已断下后才有意义,这里直接丢弃。
+	if (action == DebugAction::Break)
+	{
+		pendingBreak.store(true);
+	}
+}
+
+bool EmmyDebuggerManager::ConsumePendingBreak()
+{
+	return pendingBreak.exchange(false);
 }
 
 void EmmyDebuggerManager::Eval(std::shared_ptr<EvalContext> ctx)

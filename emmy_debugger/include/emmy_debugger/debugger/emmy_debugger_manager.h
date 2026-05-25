@@ -47,6 +47,10 @@ public:
 
 	void SetHitDebugger(std::shared_ptr<Debugger> debugger);
 
+	// 如果当前没有 hit debugger，pause(Break)请求会被挂起到这里，
+	// 由下一次任意 debugger 的 hook 触发时消费(原子读+清)。
+	bool ConsumePendingBreak();
+
 	bool IsDebuggerEmpty();
 
 	void AddBreakpoint(std::shared_ptr<BreakPoint> breakpoint);
@@ -99,6 +103,10 @@ private:
 
 	std::mutex breakDebuggerMtx;
 	std::shared_ptr<Debugger> hitDebugger;
+
+	// pause(Break)请求挂起标记: DoAction(Break) 时若无 hitDebugger 就置位，
+	// hook 路径上首次进入 line 事件时消费。
+	std::atomic<bool> pendingBreak{false};
 
 	std::mutex breakpointsMtx;
 	std::vector<std::shared_ptr<BreakPoint>> breakpoints;
