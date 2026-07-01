@@ -60,6 +60,9 @@ std::shared_ptr<Debugger> EmmyDebuggerManager::AddDebugger(lua_State* L)
 			if (ret == 1)
 			{
 				mainState = L;
+				// Record this family's main thread so GetMainState_luaJIT can resolve the
+				// family's coroutines back to it (per-family debugger keying).
+				SetMainState_luaJIT(L);
 			}
 
 			debugger = std::make_shared<Debugger>(mainState, this);
@@ -269,13 +272,10 @@ bool EmmyDebuggerManager::IsRunning()
 
 EmmyDebuggerManager::UniqueIdentifyType EmmyDebuggerManager::GetUniqueIdentify(lua_State* L)
 {
-	if (luaVersion == LuaVersion::LUA_JIT)
-	{
-		// 我们认为luajit只会有一个debugger
-		return 0;
-	}
-	else
-	{
-		return reinterpret_cast<UniqueIdentifyType>(GetMainState(L));
-	}
+	// Previously LuaJIT returned a constant 0 here ("we assume luajit will only have one
+	// debugger"), which collapsed every independent lua_State onto a single shared Debugger and
+	// made multi-state (main VM + worker VMs) debugging impossible. Key by the family main
+	// thread for LuaJIT too; GetMainState_luaJIT resolves coroutines to their main thread via
+	// the registry (see SetMainState_luaJIT / lua_state_jit.cpp).
+	return reinterpret_cast<UniqueIdentifyType>(GetMainState(L));
 }

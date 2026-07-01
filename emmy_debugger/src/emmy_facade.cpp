@@ -37,23 +37,36 @@ void EmmyFacade::HookLua(lua_State *L, lua_Debug *ar) {
 }
 
 void EmmyFacade::ReadyLuaHook(lua_State *L, lua_Debug *ar) {
-	if (!Get().readyHook) {
+	// Per-state upgrade from the lightweight "ready" trampoline to the real debug hook.
+	//
+	// The original gate was a single global `readyHook` flag, consumed by the FIRST state to
+	// run after the IDE connected, so only ONE lua_State ever upgraded to the real hook. Every
+	// other independent state (e.g. worker VMs) stayed on this do-nothing trampoline and never
+	// hit breakpoints. We instead gate per-state on this state's own Debugger: each independent
+	// state upgrades itself when it next runs on its own thread. This is inherently thread-safe
+	// because the upgrade (lua_sethook) always runs from within the state being hooked.
+	if (!Get().GetDebugManager().IsRunning()) {
 		return;
 	}
-	Get().readyHook = false;
+
+	auto debugger = Get().GetDebugger(L);
+	if (!debugger) {
+		return;
+	}
+
+	// A debugger created AFTER the IDE connected (e.g. a worker VM spawned once a game loads)
+	// is not covered by SetRunning()'s one-shot loop over existing debuggers; start it here.
+	if (!debugger->IsRunning()) {
+		debugger->Start();
+	}
 
 	auto states = FindAllCoroutine(L);
-
 	for (auto state: states) {
 		lua_sethook(state, HookLua, LUA_MASKCALL | LUA_MASKLINE | LUA_MASKRET, 0);
 	}
-
 	lua_sethook(L, HookLua, LUA_MASKCALL | LUA_MASKLINE | LUA_MASKRET, 0);
 
-	auto debugger = Get().GetDebugger(L);
-	if (debugger) {
-		debugger->Attach();
-	}
+	debugger->Attach();
 
 	Get().Hook(L, ar);
 }
