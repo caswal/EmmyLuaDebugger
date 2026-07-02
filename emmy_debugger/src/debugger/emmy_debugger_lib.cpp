@@ -109,6 +109,21 @@ int tcpSharedListen(lua_State* L)
 	return 2;
 }
 
+// emmy.tcpConnectShared(host: string, port: int): bool
+int tcpConnectShared(lua_State* L)
+{
+	luaL_checkstring(L, 1);
+	std::string err;
+	const auto host = lua_tostring(L, 1);
+	luaL_checknumber(L, 2);
+	const auto port = lua_tointeger(L, 2);
+	const auto suc = EmmyFacade::Get().TcpConnectShared(L, host, static_cast<int>(port), err);
+	lua_pushboolean(L, suc);
+	if (suc) return 1;
+	lua_pushstring(L, err.c_str());
+	return 2;
+}
+
 
 // emmy.stop()
 int stop(lua_State* L)

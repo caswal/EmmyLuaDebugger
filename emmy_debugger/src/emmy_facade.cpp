@@ -155,6 +155,21 @@ bool EmmyFacade::TcpConnect(lua_State *L, const std::string &host, int port, std
 	return suc;
 }
 
+// Connect counterpart of TcpSharedListen: the FIRST state opens the single client connection
+// to the listening IDE (via TcpConnect); every subsequent independent lua_State just registers
+// with the manager and installs its ready-hook, sharing that one connection/session. Lets you
+// leave the IDE listening and have all VMs (main + workers) attach on process start.
+bool EmmyFacade::TcpConnectShared(lua_State *L, const std::string &host, int port, std::string &err) {
+	if (transporter == nullptr) {
+		return TcpConnect(L, host, port, err);
+	}
+	if (_emmyDebuggerManager.GetDebugger(L) == nullptr) {
+		_emmyDebuggerManager.AddDebugger(L);
+		SetReadyHook(L);
+	}
+	return true;
+}
+
 bool EmmyFacade::PipeListen(lua_State *L, const std::string &name, std::string &err) {
 	Destroy();
 
@@ -369,6 +384,10 @@ void EmmyFacade::Hook(lua_State *L, lua_Debug *ar) {
 
 EmmyDebuggerManager &EmmyFacade::GetDebugManager() {
 	return _emmyDebuggerManager;
+}
+
+std::mutex &EmmyFacade::GetBreakSlotMutex() {
+	return breakSlotMutex;
 }
 
 std::shared_ptr<Debugger> EmmyFacade::GetDebugger(lua_State *L) {

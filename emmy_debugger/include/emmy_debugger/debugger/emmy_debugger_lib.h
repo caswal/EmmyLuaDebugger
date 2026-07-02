@@ -25,6 +25,12 @@ int waitIDE(lua_State* L);
 
 int tcpSharedListen(lua_State* L);
 
+// emmy.tcpConnectShared(host: string, port: int): bool
+// Connect variant of tcpSharedListen: the first state connects to a LISTENING IDE, every
+// other state registers with that one connection (so leave the IDE listening and just start
+// the process; all lua_States share the single session).
+int tcpConnectShared(lua_State* L);
+
 // emmy.stop()
 int stop(lua_State* L);
 

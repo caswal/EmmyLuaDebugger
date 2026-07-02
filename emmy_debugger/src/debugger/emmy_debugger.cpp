@@ -660,6 +660,19 @@ void Debugger::HandleBreak() {
 	// to be on the safe side, hook it again
 	UpdateHook(LUA_MASKCALL | LUA_MASKLINE | LUA_MASKRET, currentL);
 
+	// Serialize concurrent breaks across independent lua_States. emmy keeps a single
+	// hitDebugger and BreakNotify/ActionReq carry no thread id, so if another state breaks
+	// while this one is stopped it overwrites the break context and the first thread is
+	// stranded (can never be resumed). Hold the process-wide break slot for the whole stop:
+	// a second breaking thread blocks here (frozen, no BreakNotify sent) until this one
+	// resumes, then takes its turn. Serial, but nothing is stranded. Released when
+	// EnterDebugMode returns (i.e. on Continue/Step, which call ExitDebugMode).
+	//
+	// Deadlock-free: the message thread (ActionReq -> DoAction -> ExitDebugMode) never takes
+	// this mutex, so it stays free to deliver the resume that unblocks the holder. Not
+	// recursive on one thread: a step resumes (releasing) before the next HandleBreak.
+	std::unique_lock<std::mutex> breakSlot(EmmyFacade::Get().GetBreakSlotMutex());
+
 	if (EmmyFacade::Get().OnBreak(shared_from_this())) {
 		EnterDebugMode();
 	}

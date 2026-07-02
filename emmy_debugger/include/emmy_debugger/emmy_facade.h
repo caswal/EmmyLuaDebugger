@@ -55,6 +55,7 @@ public:
 	bool TcpListen(lua_State* L, const std::string& host, int port, std::string& err);
 	bool TcpSharedListen(lua_State* L, const std::string& host, int port, std::string& err);
 	bool TcpConnect(lua_State* L, const std::string& host, int port, std::string& err);
+	bool TcpConnectShared(lua_State* L, const std::string& host, int port, std::string& err);
 	bool PipeListen(lua_State* L, const std::string& name, std::string& err);
 	bool PipeConnect(lua_State* L, const std::string& name, std::string& err);
 	int BreakHere(lua_State* L);
@@ -70,6 +71,13 @@ public:
 	void OnLuaStateGC(lua_State* L);
 	void Hook(lua_State* L, lua_Debug* ar);
 	EmmyDebuggerManager& GetDebugManager();
+
+	// Serializes concurrent breakpoint stops across independent lua_States (multiple OS
+	// threads). emmy tracks a single hitDebugger and the protocol has no per-thread id, so
+	// two states breaking at once would clobber each other and strand a thread; a debugger
+	// holds this for the whole stop so a second breaking thread waits its turn. See
+	// Debugger::HandleBreak.
+	std::mutex& GetBreakSlotMutex();
 
 	std::shared_ptr<Debugger> GetDebugger(lua_State* L);
 
@@ -96,6 +104,9 @@ public:
 private:
 	std::mutex waitIDEMutex;
 	std::condition_variable waitIDECV;
+
+	// One-at-a-time break slot (see GetBreakSlotMutex / Debugger::HandleBreak).
+	std::mutex breakSlotMutex;
 	
 	std::shared_ptr<Transporter> transporter;
 	
